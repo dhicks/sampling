@@ -26,6 +26,10 @@ calculate_p_value = function(sample) {
     return(p.value)
 }
 
+power_fn = function(n, delta, sd) {
+    power.t.test(n, delta, sd)$power
+}
+
 calculate_means = function(a_sample) {
     map(a_sample, mean)
 }

@@ -2,7 +2,7 @@
 title: "Sampling and Replication Uncertainty"
 output: 
   flexdashboard::flex_dashboard:
-      vertical_layout: scroll
+      horizontal_layout: scroll
 runtime: shiny
 ---
 
@@ -33,7 +33,7 @@ The true, population-level difference in mean height (curly - straight) is
 **`r renderText(input$curly_mean - input$straight_mean)` cm**. 
 
 ```{r}
-numericInput('curly_mean', 'curly_mean', 170)
+numericInput('curly_mean', 'curly_mean', 165)
 numericInput('straight_mean', 'straight_mean', 160)
 numericInput('curly_sd', 'curly_sd', 7)
 numericInput('straight_sd', 'straight_sd', 7)
@@ -93,10 +93,10 @@ replications = eventReactive(input$go_replications,
                              replicate_N_times(input$N, 
                                                input$n,
                                                alpha = .05,
-                                        input$curly_mean, 
-                                        input$curly_sd,
-                                        input$straight_mean,
-                                        input$straight_sd))
+                                               input$curly_mean, 
+                                               input$curly_sd,
+                                               input$straight_mean,
+                                               input$straight_sd))
 ```
 
 Plots {.tabset data-width=900}
@@ -133,8 +133,72 @@ checkboxInput('pub_bias', 'Publication bias')
 
 ```{r}
 renderPlotly(ggplotly(volcano_plot(replications(), 
-                                  publication_bias = input$pub_bias))) 
+                                   publication_bias = input$pub_bias))) 
 ```
 
 Padding {data-width=100}
 -----
+
+
+
+# Power #
+
+Power tabs {.tabset}
+----
+
+### Just numbers ###
+
+**True power**
+
+In statistics, *power* is the probability of getting a statistically significant outcome in a single study, *assuming a certain difference between the groups*.  Usually we assume that this difference is 0, i.e., that the null hypothesis is false. 
+
+```{r}
+power = reactive(power.t.test(n = input$n, 
+                              delta = input$curly_mean - input$straight_mean, 
+                              sd = sqrt(.5 * (input$curly_sd^2 + input$straight_sd^2))))
+```
+
+Using the true difference of `r renderText(input$curly_mean - input$straight_mean)` cm, the true power is **`r renderText(str_c(round(power()$power * 100, digits = 0), '%'))`**. 
+
+**Hypothetical power**
+
+```{r}
+numericInput('hyp_difference', 'Hypothetical difference',
+             value = 5 #renderText(input$curly_mean - input$straight_mean)
+)
+
+hyp_power = reactive(power.t.test(n = input$n,
+                                  delta = input$hyp_difference,
+                                  sd = sqrt(.5 * (input$curly_sd^2 + input$straight_sd^2))))
+```
+
+We can also calculate power using a hypothetical or assumed difference.  In other words, what would the power be if the difference between groups were ...?  
+
+Using the hypothetical difference of `r renderText(input$hyp_difference)` cm from the box above, the power is **`r renderText(str_c(round(hyp_power()$power * 100, digits = 0), '%'))`**. 
+
+### Power and sample size ###
+
+Power increases with sample size.  This plot uses the true difference between groups.  
+
+```{r}
+## N required for 80% power
+n_req = reactive(power.t.test(delta = input$curly_mean - input$straight_mean, 
+                     sd = sqrt(.5 * (input$curly_sd^2 + input$straight_sd^2)), 
+                     power = .8)$n)
+
+power_df = reactive({
+    tibble(n = 2:round(1.25*n_req())) %>% 
+        mutate(power = map_dbl(n, power_fn, 
+                               input$curly_mean - input$straight_mean, 
+                               sqrt(.5 * (input$curly_sd^2 + input$straight_sd^2))))
+})
+
+# renderTable(power_df())
+renderPlotly(ggplotly(
+    ggplot(power_df(), aes(n, power)) +
+        geom_line() +
+        geom_hline(yintercept = .80, 
+                   linestyle = 'dashed') +
+        scale_y_continuous(labels = scales::percent_format())
+))
+```

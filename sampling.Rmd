@@ -1,0 +1,140 @@
+---
+title: "Sampling and Replication Uncertainty"
+output: 
+  flexdashboard::flex_dashboard:
+      vertical_layout: scroll
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+
+library(tidyverse)
+theme_set(theme_bw())
+library(plotly)
+library(Hmisc)
+
+source('functions.R')
+```
+
+Inputs {.sidebar}
+=====
+
+Set the *experimental design* using the parameters below. This is what scientists can control. 
+
+```{r}
+numericInput('n', 'Sample size (per group)', 5)
+numericInput('N', 'Number of replications', 2)
+```
+
+The parameters below determine the properties of the *population* (curly- and straight-haired people).  Scientists *don't* control these. 
+
+The true, population-level difference in mean height (curly - straight) is 
+**`r renderText(input$curly_mean - input$straight_mean)` cm**. 
+
+```{r}
+numericInput('curly_mean', 'curly_mean', 170)
+numericInput('straight_mean', 'straight_mean', 160)
+numericInput('curly_sd', 'curly_sd', 7)
+numericInput('straight_sd', 'straight_sd', 7)
+```
+
+
+# One Study #
+
+```{r}
+actionButton('go_one', 'Run one study')
+```
+
+```{r}
+one_study = eventReactive(input$go_one, 
+                          draw_a_sample(input$n,
+                                        input$curly_mean, 
+                                        input$curly_sd,
+                                        input$straight_mean,
+                                        input$straight_sd))
+# renderTable(one_study())
+# renderPlotly(ggplotly(plot_a_sample(one_study())))
+```
+
+Values {data-width=200}
+-----
+
+```{r}
+p_value = reactive(calculate_p_value(one_study()))
+# renderText(p_value())
+```
+
+The p-value of the difference in mean heights is `r renderText(p_value())`. 
+
+This difference **`r renderText(ifelse(p_value() < .05, 'is', 'is not'))`** statistically significant. 
+
+```{r}
+renderTable(one_study())
+```
+
+Plot {data-width=400}
+-----
+```{r}
+renderPlotly(ggplotly(plot_a_sample(one_study())))
+```
+
+
+
+
+# Many Replications #
+
+```{r}
+actionButton('go_replications', 'Run many replications')
+```
+
+```{r}
+replications = eventReactive(input$go_replications, 
+                             replicate_N_times(input$N, 
+                                               input$n,
+                                               alpha = .05,
+                                        input$curly_mean, 
+                                        input$curly_sd,
+                                        input$straight_mean,
+                                        input$straight_sd))
+```
+
+Plots {.tabset data-width=900}
+-----
+
+### Plot the first replication
+```{r}
+##<!-- plot_a_sample(replications$sample[[1]]) -->
+renderPlotly(ggplotly(plot_a_sample(replications()$sample[[1]])))
+```
+
+### Distribution of "curly greater"
+<!-- curly_greater_plot(replications) -->
+```{r}
+renderPlotly(ggplotly(curly_greater_plot(replications())))
+```
+
+### Distribution of statistical significance
+<!-- stat_sig_plot(replications) -->
+```{r}
+renderPlotly(ggplotly(stat_sig_plot(replications())))
+```
+
+### Distribution of p-values
+<!-- p_value_plot(replications) -->
+```{r}
+renderPlotly(ggplotly(p_value_plot(replications())))
+```
+
+### Volcano plot {data-padding=40}
+```{r}
+checkboxInput('pub_bias', 'Publication bias')
+```
+
+```{r}
+renderPlotly(ggplotly(volcano_plot(replications(), 
+                                  publication_bias = input$pub_bias))) 
+```
+
+Padding {data-width=100}
+-----

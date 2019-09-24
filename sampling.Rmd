@@ -15,6 +15,9 @@ library(plotly)
 library(Hmisc)
 
 source('functions.R')
+
+plot_width = 500
+plot_height = 3/4*plot_width
 ```
 
 Inputs {.sidebar}
@@ -76,9 +79,13 @@ renderTable(one_study())
 Plot {data-width=400}
 -----
 ```{r}
-renderPlotly(ggplotly(plot_a_sample(one_study())))
+renderPlotly(ggplotly(plot_a_sample(one_study()), 
+                      height = plot_height, 
+                      width = plot_width))
 ```
 
+Padding {data-width=100}
+-----
 
 
 
@@ -105,25 +112,33 @@ Plots {.tabset data-width=900}
 ### Plot the first replication
 ```{r}
 ##<!-- plot_a_sample(replications$sample[[1]]) -->
-renderPlotly(ggplotly(plot_a_sample(replications()$sample[[1]])))
+renderPlotly(ggplotly(plot_a_sample(replications()$sample[[1]]), 
+                      height = plot_height,
+                      width = plot_width))
 ```
 
 ### Distribution of "curly greater"
 <!-- curly_greater_plot(replications) -->
 ```{r}
-renderPlotly(ggplotly(curly_greater_plot(replications())))
+renderPlotly(ggplotly(curly_greater_plot(replications()), 
+                      height = plot_height,
+                      width = plot_width))
 ```
 
 ### Distribution of statistical significance
 <!-- stat_sig_plot(replications) -->
 ```{r}
-renderPlotly(ggplotly(stat_sig_plot(replications())))
+renderPlotly(ggplotly(stat_sig_plot(replications()), 
+                      height = plot_height,
+                      width = plot_width))
 ```
 
 ### Distribution of p-values
 <!-- p_value_plot(replications) -->
 ```{r}
-renderPlotly(ggplotly(p_value_plot(replications())))
+renderPlotly(ggplotly(p_value_plot(replications()), 
+                      height = plot_height,
+                      width = plot_width))
 ```
 
 ### Volcano plot {data-padding=40}
@@ -133,7 +148,9 @@ checkboxInput('pub_bias', 'Publication bias')
 
 ```{r}
 renderPlotly(ggplotly(volcano_plot(replications(), 
-                                   publication_bias = input$pub_bias))) 
+                                   publication_bias = input$pub_bias), 
+                      height = plot_height,
+                      width = plot_width)) 
 ```
 
 Padding {data-width=100}
@@ -150,7 +167,7 @@ Power tabs {.tabset}
 
 **True power**
 
-In statistics, *power* is the probability of getting a statistically significant outcome in a single study, *assuming a certain difference between the groups*.  Usually we assume that this difference is 0, i.e., that the null hypothesis is false. 
+In statistics, *power* is the probability of getting a statistically significant outcome in a single study, *assuming a certain difference between the groups*.  Usually we assume that this difference is not 0, i.e., that the null hypothesis is false. 
 
 ```{r}
 power = reactive(power.t.test(n = input$n, 
@@ -176,6 +193,12 @@ We can also calculate power using a hypothetical or assumed difference.  In othe
 
 Using the hypothetical difference of `r renderText(input$hyp_difference)` cm from the box above, the power is **`r renderText(str_c(round(hyp_power()$power * 100, digits = 0), '%'))`**. 
 
+**Ways to increase power**
+
+- A larger real difference between groups leads to greater power.  (Though researchers usually can't control the size of the difference.)
+- A larger sample size leads to greater power.  
+- A lower alpha (raising the threshold for statistical significance) leads to greater power.  
+
 ### Power and sample size ###
 
 Power increases with sample size.  This plot uses the true difference between groups.  
@@ -183,8 +206,8 @@ Power increases with sample size.  This plot uses the true difference between gr
 ```{r}
 ## N required for 80% power
 n_req = reactive(power.t.test(delta = input$curly_mean - input$straight_mean, 
-                     sd = sqrt(.5 * (input$curly_sd^2 + input$straight_sd^2)), 
-                     power = .8)$n)
+                              sd = sqrt(.5 * (input$curly_sd^2 + input$straight_sd^2)), 
+                              power = .8)$n)
 
 power_df = reactive({
     tibble(n = 2:round(1.25*n_req())) %>% 
@@ -199,6 +222,8 @@ renderPlotly(ggplotly(
         geom_line() +
         geom_hline(yintercept = .80, 
                    linetype = 'dashed') +
-        scale_y_continuous(labels = scales::percent_format())
+        scale_y_continuous(labels = scales::percent_format()), 
+    height = plot_height,
+    width = plot_width
 ))
 ```

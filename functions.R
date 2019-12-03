@@ -26,15 +26,15 @@ calculate_p_value = function(sample) {
     return(p.value)
 }
 
-power_fn = function(n, delta, sd) {
-    power.t.test(n, delta, sd)$power
+power_fn = function(n, delta, sd, alpha) {
+    power.t.test(n, delta, sd, sig.level = alpha)$power
 }
 
 calculate_means = function(a_sample) {
     map(a_sample, mean)
 }
 
-replicate_N_times = function(N, n, alpha = .05, ...) {
+replicate_N_times = function(N, n, ...) {
     replications = tibble(rep_idx = 1:N, 
                           n = n) %>% 
         mutate(sample = map(n, draw_a_sample, ...), 
@@ -49,8 +49,8 @@ replicate_N_times = function(N, n, alpha = .05, ...) {
                curly_greater = curly.mean > curlymean,
                t.test = map2(curly, straight, t.test),
                t.test.tidy = map(t.test, broom::tidy)) %>%
-        unnest(t.test.tidy) %>%
-        mutate(stat.sig = p.value < alpha)
+        unnest(t.test.tidy) #%>%
+        # mutate(stat.sig = p.value < alpha)
     return(replications)
 }
 
@@ -68,8 +68,9 @@ curly_greater_plot = function(replications) {
         scale_fill_brewer(palette = 'Set1')
 }
 
-stat_sig_plot = function(replications) {
+stat_sig_plot = function(replications, alpha = .05) {
     replications %>% 
+        mutate(stat.sig = p.value < alpha) %>% 
         count(stat.sig) %>% 
         mutate(share = n / sum(n)) %>% 
         ggplot(aes(stat.sig, share, fill = stat.sig)) +
@@ -82,27 +83,41 @@ stat_sig_plot = function(replications) {
 }
 
 
-p_value_plot = function(replications) {
+p_value_plot = function(replications, alpha = .05) {
     ggplot(replications, aes(p.value)) +
-        geom_density() +
+        # geom_density() +
         # geom_area(stat = 'density', 
         #           aes(fill = stat.sig, group = 1L)) +
+        geom_histogram(binwidth = .05, boundary = .05, 
+                       fill = 'pink', color = 'black') +
         geom_rug() +
         xlab('p value') +
-        geom_vline(xintercept = .05, linetype = 'dashed')
+        geom_vline(xintercept = alpha, linetype = 'dashed')
 }
 
 volcano_plot = function(replications, 
-                       publication_bias = FALSE) {
+                        alpha = .05,
+                        publication_bias = FALSE) {
+    neg_log_trans = scales::trans_new('nlog10', 
+                                 function(x) -log10(x), 
+                                 function(y) 10^-y, 
+                                 scales::log_breaks(base = 10), 
+                                 domain = c(1e-100, Inf))
+    
+    replications = mutate(replications, 
+                          stat.sig = p.value < alpha)
+    
     mean_effect = mean(replications$difference)
     mean_effect_bias = replications %>% 
         filter(stat.sig) %>% 
         pull(difference) %>% 
         mean()
     
-    plot = ggplot(replications, aes(difference, -log10(p.value), color = stat.sig)) +
+    plot = ggplot(replications, aes(difference, p.value, color = stat.sig)) +
         geom_point() +
         geom_vline(xintercept = mean_effect, linetype = 'dashed') +
+        geom_hline(yintercept = alpha, alpha = .1) +
+        scale_y_continuous(trans = neg_log_trans) +
         scale_color_brewer(palette = 'Set1') +
         labs(x = 'difference (curly - straight)', 
              y = 'p-value (negative log scale)', 
